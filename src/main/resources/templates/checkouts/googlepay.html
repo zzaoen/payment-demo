@@ -1,0 +1,114 @@
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <script src="https://pay.google.com/gp/p/js/pay.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.85.2/js/client.min.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.85.2/js/google-payment.min.js"></script>
+</head>
+<body>
+
+
+<div class="wrapper">
+    <div class="checkout container">
+
+        <header>
+            <h1>Test an GooglePay transaction </h1>
+        </header>
+
+        <form id="payment-form" method="post" action="/checkouts">
+            <section>
+                <label for="amount">
+                    <span class="input-label">Amount</span>
+                    <div class="input-wrapper amount-wrapper">
+                        <input id="amount" name="amount" type="tel" min="1" placeholder="Amount" value="11"/>
+                    </div>
+                </label>
+            </section>
+
+            <input type="hidden" id="nonce" name="payment_method_nonce"/>
+            <!--                <button class="button" type="submit"><span>Test Transaction</span></button>-->
+        </form>
+    </div>
+</div>
+
+<div id="container"></div>
+
+<script th:inline="javascript">
+
+    var client_token = [[${clientToken}]];
+    console.log('client_token=', client_token)
+
+    var form = document.querySelector('#payment-form');
+    // Make sure to have https://pay.google.com/gp/p/js/pay.js loaded on your page
+
+
+    var paymentsClient = new google.payments.api.PaymentsClient({
+        environment: 'TEST' // or 'PRODUCTION'
+    });
+
+    function setupGooglePayButton(googlePaymentInstance) {
+        var button = document.createElement('button');
+
+        button.id = 'google-pay';
+        button.appendChild(document.createTextNode('Google Pay'));
+        document.getElementById('container').appendChild(button);
+
+        button.addEventListener('click', function (event) {
+            // var paymentRequestData;
+
+            event.preventDefault();
+
+            paymentDataRequest = googlePaymentInstance.createPaymentDataRequest({
+                transactionInfo: {
+                    currencyCode: 'USD',
+                    totalPriceStatus: 'FINAL',
+                    totalPrice: '100.00' // your amount
+                }
+            });
+
+            paymentsClient.loadPaymentData(paymentDataRequest).then(function (paymentData) {
+                return googlePaymentInstance.parseResponse(paymentData);
+            }).then(function (result) {
+                // send result.nonce to your server
+                console.log('nonce:', result.nonce);
+
+                document.querySelector('#nonce').value = result.nonce;
+                form.submit();
+            }).catch(function (err) {
+                // handle errors
+            });
+        });
+
+        document.getElementById('container').appendChild(button);
+    }
+
+    braintree.client.create({
+        authorization: client_token
+    }, function (clientErr, clientInstance) {
+        braintree.googlePayment.create({
+            client: clientInstance,
+            googlePayVersion: 2,
+            googleMerchantId: 'viagogoUSD' // Optional in sandbox; if set in sandbox, this value must be a valid production Google Merchant ID
+        }, function (googlePaymentErr, googlePaymentInstance) {
+            paymentsClient.isReadyToPay({
+                // see https://developers.google.com/pay/api/web/reference/object#IsReadyToPayRequest
+                apiVersion: 2,
+                apiVersionMinor: 0,
+                allowedPaymentMethods: googlePaymentInstance.createPaymentDataRequest().allowedPaymentMethods,
+                existingPaymentMethodRequired: true // Optional
+            }).then(function(response) {
+                if (response.result) {
+                    setupGooglePayButton(googlePaymentInstance);
+                }
+            }).catch(function (err) {
+                // Handle errors
+            });
+        });
+
+        // Set up other Braintree components
+    });
+
+
+</script>
+</body>
+</html>

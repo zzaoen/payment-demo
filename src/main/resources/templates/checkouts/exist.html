@@ -1,0 +1,138 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<!-- Load the client component. -->
+<script src='https://js.braintreegateway.com/web/3.65.0/js/client.min.js'></script>
+
+<!-- Load the 3D Secure component. -->
+<script src='https://js.braintreegateway.com/web/3.65.0/js/three-d-secure.min.js'></script>
+
+<!-- Load the Hosted Fields component. -->
+<script src='https://js.braintreegateway.com/web/3.65.0/js/hosted-fields.min.js'></script>
+<div class="wrapper">
+    <div class="checkout container">
+
+        <header>
+            <h1>Hi, <br/>Let's test a transaction</h1>
+            <p>
+                Make a test payment with Braintree using PayPal or a card
+            </p>
+        </header>
+
+        <form id="payment-form" method="post" action="/selects">
+            <section>
+                <label for="amount">
+                    <span class="input-label">Amount</span>
+                    <div class="input-wrapper amount-wrapper">
+                        <input id="amount" name="amount" type="tel" min="1" placeholder="Amount" value="10"/>
+                    </div>
+                </label>
+
+                <div class="bt-drop-in-wrapper">
+                    <div id="bt-dropin"></div>
+                </div>
+            </section>
+
+            <input type="hidden" id="nonce" name="payment_method_nonce"/>
+            <button class="button" type="submit"><span>Test Transaction</span></button>
+        </form>
+    </div>
+</div>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+
+    var form = document.querySelector('#payment-form');
+    var client_token = [[${clientToken}]];
+    var nonce = [[${nonce}]];
+    var bin = [[${bin}]];
+
+var threeDSecureParameters = {
+  amount: '500.00',
+  nonce: nonce, // Example: hostedFieldsTokenizationPayload.nonce
+  bin: bin, // Example: hostedFieldsTokenizationPayload.details.bin
+  email: 'test@example.com',
+  billingAddress: {
+    givenName: 'Jill', // ASCII-printable characters required, else will throw a validation error
+    surname: 'Doe', // ASCII-printable characters required, else will throw a validation error
+    phoneNumber: '8101234567',
+    streetAddress: '555 Smith St.',
+    extendedAddress: '#5',
+    locality: 'Oakland',
+    region: 'CA',
+    postalCode: '12345',
+    countryCodeAlpha2: 'US'
+  },
+  additionalInformation: {
+    workPhoneNumber: '8101234567',
+    shippingGivenName: 'Jill',
+    shippingSurname: 'Doe',
+    shippingPhone: '8101234567',
+    shippingAddress: {
+      streetAddress: '555 Smith St.',
+      extendedAddress: '#5',
+      locality: 'Oakland',
+      region: 'CA',
+      postalCode: '12345',
+      countryCodeAlpha2: 'US'
+    }
+  },
+  onLookupComplete: function (data, next) {
+    // use `data` here, then call `next()`
+    console.log("data", data)
+    next();
+  }
+};
+
+
+var threeDSecure;
+
+braintree.client.create({
+  // Use the generated client token to instantiate the Braintree client.
+    authorization: client_token,
+    container: '#bt-dropin'
+}, function (clientErr, clientInstance) {
+  if (clientErr) {
+    // Handle error in client creation
+    console.log("clientErr", clientErr)
+    return;
+  }
+
+  braintree.threeDSecure.create({
+    version: 2, // Will use 3DS 2 whenever possible
+    client: clientInstance
+  }, function (threeDSecureErr, threeDSecureInstance) {
+    if (threeDSecureErr) {
+      // Handle error in 3D Secure component creation
+        console.log("threeDSecureErr", threeDSecureErr)
+      return;
+    }
+
+    threeDSecure = threeDSecureInstance;
+console.log("threeDSecure", threeDSecure)
+threeDSecure.verifyCard(threeDSecureParameters, function (err, response) {
+  if (err) {
+    // Handle error
+        console.log("err", err)
+    return;
+  }
+  // Send response.nonce to your server for use in your integration
+  // The 3D Secure Authentication ID can be found
+  //  at response.threeDSecureInfo.threeDSecureAuthenticationId
+    document.querySelector('#nonce').value = response.nonce;
+    form.submit();
+});
+
+  });
+});
+
+
+
+
+    /*]]>*/
+</script>
+</body>
+</html>

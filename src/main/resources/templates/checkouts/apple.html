@@ -1,0 +1,80 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Braintree Checkout</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <link rel="stylesheet" type="text/css" href="/css/app.css" th:href="@{/css/app.css}"/>
+    <link rel="icon" type="image/png" href="/images/favicon.png" th:href="@{/images/favicon.png}"/>
+</head>
+<body>
+<form id="my-sample-form" method="post" action="/apple">
+
+
+    <label for="amount">
+        <span class="input-label">Amount</span>
+        <div class="input-wrapper amount-wrapper">
+            <input id="amount" name="amount" type="tel" min="1" placeholder="Amount" value="10"/>
+        </div>
+    </label>
+
+    <!--    <label for="card-number">Card Number</label>-->
+    <!--    <div id="card-number"></div>-->
+
+    <!--    <label for="cvv">CVV</label>-->
+    <!--    <div id="cvv"></div>-->
+
+    <!--    <label for="expiration-date">Expiration Date</label>-->
+    <!--    <div id="expiration-date"></div>-->
+
+    <!--    <input type="hidden" id="nonce" name="payment_method_nonce"/>-->
+    <!--    <input type="hidden" id="threeDSId" name="threeDSId"/>-->
+    <div id="dropin-container"></div>
+    <input type="submit" value="Pay" disabled/>
+</form>
+
+<!--<script src="https://js.braintreegateway.com/web/3.85.2/js/client.min.js"></script>-->
+<!--<script src="https://js.braintreegateway.com/web/3.85.2/js/apple-pay.min.js"></script>-->
+<script src="https://js.braintreegateway.com/web/dropin/1.33.0/js/dropin.min.js"></script>
+
+<script th:inline="javascript">
+    var form = document.querySelector('#my-sample-form');
+    var submit = document.querySelector('input[type="submit"]');
+    var client_token = [[${clientToken}]];
+    var amount = document.querySelector('#amount').value;
+
+    // braintree.client.create({
+    // authorization: client_token
+    // }, function (clientErr, clientInstance) {
+    // if (clientErr) {
+    //   console.error(clientErr);
+    //   return;
+    // }
+
+    braintree.dropin.create({
+            authorization: client_token,
+            container: '#dropin-container',
+            applePay: {
+                displayName: 'My Store',
+                paymentRequest: {
+                    total: {
+                        label: 'My Store',
+                        amount: '19.99'
+                    },
+                    // We recommend collecting billing address information, at minimum
+                    // billing postal code, and passing that billing postal code with all
+                    // Apple Pay transactions as a best practice.
+                    // requiredBillingContactFields: ["postalAddress"]
+                }
+            }
+        }, function (clientErr, clientInstance) {
+            if (clientErr) {
+                console.error(clientErr);
+                return;
+            }
+        }
+    );
+
+
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>add new card</title>
+</head>
+<body>
+<form action="/customer" id="my-sample-form" method="post">
+    <label for="card-number">Card Number</label>
+    <div id="card-number"></div>
+
+    <label for="cvv">CVV</label>
+    <div id="cvv"></div>
+
+    <label for="expiration-date">Expiration Date</label>
+    <div id="expiration-date"></div>
+    <input type="hidden" id="nonce" name="payment_method_nonce"/>
+    <input type="hidden" id="threeDs" name="threeDs"/>
+    <input type="submit" value="submit" disabled />
+</form>
+
+<script src="https://js.braintreegateway.com/web/3.65.0/js/client.min.js"></script>
+<script src="https://js.braintreegateway.com/web/3.65.0/js/hosted-fields.min.js"></script>
+<script src='https://js.braintreegateway.com/web/3.65.0/js/three-d-secure.min.js'></script>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+      var form = document.querySelector('#my-sample-form');
+var submit = document.querySelector('input[type="submit"]');
+var client_token = [[${clientToken}]];
+
+braintree.client.create({
+    authorization: client_token
+}, function(clientErr, clientInstance) {
+    if (clientErr) {
+        console.error(clientErr);
+        return;
+    }
+
+    // This example shows Hosted Fields, but you can also use this
+    // client instance to create additional components here, such as
+    // PayPal or Data Collector.
+
+    braintree.hostedFields.create({
+        client: clientInstance,
+        styles: {
+            'input': {
+                'font-size': '14px'
+            },
+            'input.invalid': {
+                'color': 'red'
+            },
+            'input.valid': {
+                'color': 'green'
+            }
+        },
+        fields: {
+            number: {
+                selector: '#card-number',
+                placeholder: '4111 1111 1111 1111'
+            },
+            cvv: {
+                selector: '#cvv',
+                placeholder: '123'
+            },
+            expirationDate: {
+                selector: '#expiration-date',
+                placeholder: '10/2022'
+            }
+        }
+    }, function(hostedFieldsErr, hostedFieldsInstance) {
+        if (hostedFieldsErr) {
+            console.error(hostedFieldsErr);
+            return;
+        }
+
+        submit.removeAttribute('disabled');
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            hostedFieldsInstance.tokenize(function(tokenizeErr, payload) {
+                if (tokenizeErr) {
+                    console.error(tokenizeErr);
+                    return;
+                }
+
+                // If this was a real integration, this is where you would
+                // send the nonce to your server.
+                console.log('Got a nonce: ' + payload.nonce);
+                console.log('payload: ' +  JSON.stringify(payload));
+
+                var threeDSecureParameters = {
+                    amount: '500.00',
+                    nonce: payload.nonce, // Example: hostedFieldsTokenizationPayload.nonce
+                    bin: payload.details.bin, // Example: hostedFieldsTokenizationPayload.details.bin
+                    email: 'test@example.com',
+                    billingAddress: {
+                        givenName: 'Jill', // ASCII-printable characters required, else will throw a validation error
+                        surname: 'Doe', // ASCII-printable characters required, else will throw a validation error
+                        phoneNumber: '8101234567',
+                        streetAddress: '555 Smith St.',
+                        extendedAddress: '#5',
+                        locality: 'Oakland',
+                        region: 'CA',
+                        postalCode: '12345',
+                        countryCodeAlpha2: 'US'
+                    },
+                    additionalInformation: {
+                        workPhoneNumber: '8101234567',
+                        shippingGivenName: 'Jill',
+                        shippingSurname: 'Doe',
+                        shippingPhone: '8101234567',
+                        shippingAddress: {
+                            streetAddress: '555 Smith St.',
+                            extendedAddress: '#5',
+                            locality: 'Oakland',
+                            region: 'CA',
+                            postalCode: '12345',
+                            countryCodeAlpha2: 'US'
+                        }
+                    },
+                    onLookupComplete: function(data, next) {
+                        // use `data` here, then call `next()`
+                        console.log("data",  JSON.stringify(data))
+                        next();
+                    }
+                };
+
+                var threeDSecure;
+                braintree.threeDSecure.create({
+                    version: 2, // Will use 3DS 2 whenever possible
+                    client: clientInstance
+                }, function(threeDSecureErr, threeDSecureInstance) {
+                    if (threeDSecureErr) {
+                        // Handle error in 3D Secure component creation
+                        console.log("threeDSecureErr", threeDSecureErr)
+                        return;
+                    }
+
+                    threeDSecure = threeDSecureInstance;
+                    console.log("threeDSecure", threeDSecure)
+                    threeDSecure.verifyCard(threeDSecureParameters, function(err, response) {
+                        if (err) {
+                            // Handle error
+                            console.log("err", err)
+                            return;
+                        }
+                        // Send response.nonce to your server for use in your integration
+                        // The 3D Secure Authentication ID can be found
+                        //  at response.threeDSecureInfo.threeDSecureAuthenticationId
+                        console.log("response", JSON.stringify(response));
+                        document.querySelector('#nonce').value = response.nonce;
+                        document.querySelector('#threeDs').value = JSON.stringify(response.threeDSecureInfo);
+                        form.submit();
+                    });
+                });
+            });
+        }, false);
+    });
+});
+
+    /*]]>*/
+    </script>
+</body>
+</html>

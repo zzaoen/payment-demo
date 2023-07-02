@@ -1,0 +1,122 @@
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <script src="https://pay.google.com/gp/p/js/pay.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.85.2/js/client.min.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.85.2/js/google-payment.min.js"></script>
+</head>
+<body>
+
+
+<div class="wrapper">
+    <div class="checkout container">
+
+        <header>
+            <h1>Test an GooglePay transaction </h1>
+        </header>
+
+        <form id="payment-form" method="post" action="/checkouts">
+            <section>
+                <label for="amount">
+                    <span class="input-label">Amount</span>
+                    <div class="input-wrapper amount-wrapper">
+                        <input id="amount" name="amount" type="tel" min="1" placeholder="Amount" value="11"/>
+                    </div>
+                </label>
+            </section>
+
+            <input type="hidden" id="nonce" name="payment_method_nonce"/>
+            <!--                <button class="button" type="submit"><span>Test Transaction</span></button>-->
+        </form>
+    </div>
+</div>
+
+<div id="container"></div>
+
+<script th:inline="javascript">
+
+    var client_token = [[${clientToken}]];
+    console.log('client_token=', client_token)
+
+    var form = document.querySelector('#payment-form');
+    // Make sure to have https://pay.google.com/gp/p/js/pay.js loaded on your page
+
+    // You will need a button element on your page styled according to Google's brand guidelines
+    // https://developers.google.com/pay/api/web/guides/brand-guidelines
+    var button = document.querySelector('#google-pay-button');
+    var paymentsClient = new google.payments.api.PaymentsClient({
+        environment: 'TEST' // 'TEST' Or 'PRODUCTION'
+    });
+
+    braintree.client.create({
+        authorization: client_token
+    }, function (clientErr, clientInstance) {
+        braintree.googlePayment.create({
+            client: clientInstance,
+            googlePayVersion: 2,
+            googleMerchantId: 'sh_usd' // Optional in sandbox; if set in sandbox, this value must be a valid production Google Merchant ID
+        }, function (googlePaymentErr, googlePaymentInstance) {
+            paymentsClient.isReadyToPay({
+                // see https://developers.google.com/pay/api/web/reference/object#IsReadyToPayRequest
+                apiVersion: 2,
+                apiVersionMinor: 0,
+                allowedPaymentMethods: googlePaymentInstance.createPaymentDataRequest().allowedPaymentMethods,
+                existingPaymentMethodRequired: true // Optional
+            }).then(function(response) {
+                if (response.result) {
+
+                    const googlePayButton =
+                        paymentsClient.createButton({onClick: null});
+                    document.getElementById('container').appendChild(googlePayButton);
+
+                    googlePayButton.addEventListener('click', function (event) {
+                        event.preventDefault();
+
+                        var paymentDataRequest = googlePaymentInstance.createPaymentDataRequest({
+                            transactionInfo: {
+                                currencyCode: 'USD',
+                                totalPriceStatus: 'FINAL',
+                                totalPrice: '100.00' // Your amount
+                            }
+                        });
+
+                        // We recommend collecting billing address information, at minimum
+                        // billing postal code, and passing that billing postal code with all
+                        // Google Pay card transactions as a best practice.
+                        // See all available options at https://developers.google.com/pay/api/web/reference/object
+                        var cardPaymentMethod = paymentDataRequest.allowedPaymentMethods[0];
+                        cardPaymentMethod.parameters.billingAddressRequired = true;
+                        cardPaymentMethod.parameters.billingAddressParameters = {
+                            format: 'FULL',
+                            phoneNumberRequired: true
+                        };
+
+                        paymentsClient.loadPaymentData(paymentDataRequest).then(function(paymentData) {
+                            googlePaymentInstance.parseResponse(paymentData, function (err, result) {
+                                if (err) {
+                                    // Handle parsing error
+                                }
+
+                                // Send result.nonce to your server
+                                // result.type may be either "AndroidPayCard" or "PayPalAccount", and
+                                // paymentData will contain the billingAddress for card payments
+                                console.log('nonce:', result.nonce);
+
+                                document.querySelector('#nonce').value = result.nonce;
+                                form.submit();
+                            });
+                        }).catch(function (err) {
+                            // Handle errors
+                        });
+                    });
+                }
+            }).catch(function (err) {
+                // Handle errors
+            });
+        });
+
+        // Set up other Braintree components
+    });
+</script>
+</body>
+</html>

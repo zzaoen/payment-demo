@@ -1,0 +1,137 @@
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <script src="https://js.braintreegateway.com/web/3.85.2/js/client.min.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.85.2/js/apple-pay.min.js"></script>
+
+    <style type="text/css">
+
+        .apple-pay-button {
+            display: inline-block;
+            -webkit-appearance: -apple-pay-button;
+            -apple-pay-button-type: buy; /* Use any supported button type. */
+        }
+
+        .apple-pay-button-black {
+            -apple-pay-button-style: black;
+        }
+
+        .apple-pay-button-white {
+            -apple-pay-button-style: white;
+        }
+
+        .apple-pay-button-white-with-line {
+            -apple-pay-button-style: white-outline;
+        }
+    </style>
+</head>
+<body>
+
+
+<div class="wrapper">
+    <div class="checkout container">
+
+        <header>
+            <h1>Test an ApplePay transaction </h1>
+        </header>
+
+        <form id="payment-form" method="post" action="/checkouts">
+            <section>
+                <label for="amount">
+                    <span class="input-label">Amount</span>
+                    <div class="input-wrapper amount-wrapper">
+                        <input id="amount" name="amount" type="tel" min="1" placeholder="Amount" value="11"/>
+                    </div>
+                </label>
+            </section>
+
+            <input type="hidden" id="nonce" name="payment_method_nonce"/>
+            <!--                <button class="button" type="submit"><span>Test Transaction</span></button>-->
+        </form>
+    </div>
+</div>
+
+<div id="applepay-button" class="apple-pay-button apple-pay-button-black"></div>
+<script th:inline="javascript">
+    var client_token = [[${clientToken}]];
+    console.log('client_token=', client_token)
+
+    var button = document.querySelector('#applepay-button');
+    var form = document.querySelector('#payment-form');
+    var amount = document.querySelector('#amount');
+
+    braintree.client.create({
+        // authorization: 'sandbox_24pjyrxc_6xqm7hjdhkq7x6qk'
+        authorization: client_token
+    }).then(function (clientInstance) {
+        return braintree.applePay.create({
+            client: clientInstance
+        });
+    }).then(function (applePayInstance) {
+        button.addEventListener('click', function () {
+            var paymentRequest = applePayInstance.createPaymentRequest({
+                total: {
+                    label: 'sh Dev Test Store',
+                    amount: amount.value
+                },
+
+                // We recommend collecting billing address information, at minimum
+                // billing postal code, and passing that billing postal code with
+                // all Apple Pay transactions as a best practice.
+                requiredBillingContactFields: ["postalAddress"]
+            });
+            console.log(paymentRequest.countryCode);
+            console.log(paymentRequest.currencyCode);
+            console.log(paymentRequest.merchantCapabilities);
+            console.log(paymentRequest.supportedNetworks);
+
+            var session = new ApplePaySession(3, paymentRequest);
+
+            session.onvalidatemerchant = function (event) {
+                applePayInstance.performValidation({
+                    validationURL: event.validationURL,
+                    displayName: 'My Store'
+                }).then(function (merchantSession) {
+                    session.completeMerchantValidation(merchantSession);
+                    console.log('merchantSession: ', merchantSession);
+
+                }).catch(function (validationErr) {
+                    // You should show an error to the user, e.g. 'Apple Pay failed to load.'
+                    console.error('Error validating merchant:', validationErr);
+                    session.abort();
+                });
+            };
+
+            session.onpaymentauthorized = function (event) {
+                console.log('Your shipping address is:', event.payment.shippingContact);
+
+                applePayInstance.tokenize({
+                    token: event.payment.token
+                }).then(function (payload) {
+                    // Send payload.nonce to your server.
+                    console.log('nonce:', payload.nonce);
+
+                    // If requested, address information is accessible in event.payment
+                    // and may also be sent to your server.
+                    console.log('billingPostalCode:', event.payment.billingContact.postalCode);
+
+
+                    document.querySelector('#nonce').value = payload.nonce;
+                    form.submit();
+                    // After you have transacted with the payload.nonce,
+                    // call `completePayment` to dismiss the Apple Pay sheet.
+                    session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                }).catch(function (tokenizeErr) {
+                    console.error('Error tokenizing Apple Pay:', tokenizeErr);
+                    session.completePayment(ApplePaySession.STATUS_FAILURE);
+                });
+            };
+            session.begin();
+        });
+
+    }).catch(function (err) {
+        // Handle error
+    });
+</script>
+</body>
+</html>
